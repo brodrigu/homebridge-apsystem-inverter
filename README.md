@@ -5,11 +5,10 @@ This plugin shows you total kilo watts per hour generated today and last watts g
 
 ## Features
 
-- Supports both newer HTTPS API and legacy HTTP API
-- Configurable API endpoints
-- Optional API authentication token support
+- Uses AP Systems web dashboard API (session-based authentication)
+- Backward compatible with legacy HTTP API
 - Improved error handling and response parsing
-- Backward compatible with existing configurations
+- Simple configuration using demo user ID
 
 ## Installation
 
@@ -17,47 +16,57 @@ This plugin shows you total kilo watts per hour generated today and last watts g
 npm install -g homebridge-apsystem-inverter
 ```
 
+## Authentication
+
+The plugin automatically logs in to a demo user account using the provided `demoUserId` or `demoLoginUrl`. The demo account may have limited access and may not work for all endpoints.
+
+**Required configuration:**
+```json
+{
+    "accessory": "APSystemsInverter",
+    "name": "Watts",
+    "demoUserId": "2c9f95c795effb776595f37a52d246fd",
+    "inverter_data": "Watts"
+}
+```
+
 ## Configuration
 
 Add to your `config.json` in the `accessories` section:
 
-### Basic Configuration (Newer API - HTTPS)
+### Web Dashboard API Configuration (Recommended)
 
+**Required**: Provide `demoUserId` or `demoLoginUrl`:
+
+**Using demoUserId (recommended):**
 ```json
 "accessories": [
     {
         "accessory": "APSystemsInverter",
         "name": "Watts",
-        "ecuId": "XXXXXXXXXXXX",
+        "demoUserId": "2c9f95c795effb776595f37a52d246fd",
         "inverter_data": "Watts"
     },
     {
         "accessory": "APSystemsInverter",
         "name": "kWh",
-        "ecuId": "XXXXXXXXXXXX",
+        "demoUserId": "2c9f95c795effb776595f37a52d246fd",
         "inverter_data": "Kwh"
     }
 ]
 ```
 
-### Advanced Configuration (with API authentication)
-
+**Or provide the full demo login URL:**
 ```json
-"accessories": [
-    {
-        "accessory": "APSystemsInverter",
-        "name": "Watts",
-        "ecuId": "XXXXXXXXXXXX",
-        "inverter_data": "Watts",
-        "apiToken": "your-api-token-here",
-        "apiBaseUrl": "https://api.apsystemsema.com",
-        "apiPath": "/apsema/v1/ecu/getPowerInfo",
-        "apiPort": 443
-    }
-]
+{
+    "accessory": "APSystemsInverter",
+    "name": "Watts",
+    "demoLoginUrl": "https://www.apsystemsema.com/ema/intoDemoUser.action?id=YOUR_ID&local=en_US",
+    "inverter_data": "Watts"
+}
 ```
 
-### Legacy API Configuration (HTTP)
+### Legacy API Configuration (Backward Compatibility)
 
 If you need to use the old HTTP API endpoint:
 
@@ -69,29 +78,81 @@ If you need to use the old HTTP API endpoint:
         "ecuId": "XXXXXXXXXXXX",
         "inverter_data": "Watts",
         "useLegacyApi": true
+    },
+    {
+        "accessory": "APSystemsInverter",
+        "name": "kWh",
+        "ecuId": "XXXXXXXXXXXX",
+        "inverter_data": "Kwh",
+        "useLegacyApi": true
     }
 ]
 ```
 
 ## Configuration Options
 
+### Web Dashboard API Options
+
 | Option | Type | Required | Default | Description |
 |--------|------|----------|---------|-------------|
 | `name` | string | Yes | - | Display name for the accessory |
-| `ecuId` | string | Yes | - | Your AP Systems ECU ID |
+| `demoUserId` | string | Yes* | - | Demo user ID for auto-login |
+| `demoLoginUrl` | string | Yes* | Built from `demoUserId` | Full demo login URL (overrides `demoUserId` if provided) |
 | `inverter_data` | string | Yes | - | Either "Watts" or "Kwh" |
-| `apiToken` | string | No | null | API authentication token (if required) |
-| `apiBaseUrl` | string | No | `https://api.apsystemsema.com` | Base URL for the API |
-| `apiPath` | string | No | `/apsema/v1/ecu/getPowerInfo` | API endpoint path |
-| `apiPort` | number | No | `443` | API port (443 for HTTPS, 8073 for legacy HTTP) |
-| `useLegacyApi` | boolean | No | `false` | Set to `true` to use legacy HTTP endpoint |
 | `manufacturer` | string | No | `AP Systems` | Manufacturer name |
 | `model` | string | No | `Inverter` | Model name |
 | `serial` | string | No | `APSystems-inverter` | Serial number |
 | `min_lux` | number | No | `0` | Minimum lux value |
 | `max_lux` | number | No | `10000` | Maximum lux value |
 
+\* Either `demoUserId` OR `demoLoginUrl` must be provided
+
+### Legacy API Options
+
+| Option | Type | Required | Default | Description |
+|--------|------|----------|---------|-------------|
+| `name` | string | Yes | - | Display name for the accessory |
+| `ecuId` | string | Yes | - | ECU ID (legacy API) |
+| `inverter_data` | string | Yes | - | Either "Watts" or "Kwh" |
+| `useLegacyApi` | boolean | Yes | `false` | Set to `true` to use legacy HTTP endpoint |
+| `apiBaseUrl` | string | No | `http://api.apsystemsema.com` | Base URL for the API |
+| `apiPath` | string | No | `/apsema/v1/ecu/getPowerInfo` | API endpoint path |
+| `apiPort` | number | No | `8073` | API port |
+
+*Required only when using OpenAPI v2 (when `useLegacyApi` is false or not set)
+
+## Testing
+
+Use the test script to verify your demo user ID works:
+
+```bash
+node test-dashboard-api.js
+```
+
+Update the `DEMO_USER_ID` in the script with your demo user ID first.
+
 ## Changelog
+
+### Version 0.6.0
+- **BREAKING**: Switched to web dashboard API using session-based authentication
+- **BREAKING**: Removed support for manual cookie configuration - now requires `demoUserId` or `demoLoginUrl`
+- **NEW**: Automatic demo user login using `demoUserId` configuration
+- Removed OpenAPI v2 authentication (signature-based)
+- Auto-login to demo user via `intoDemoUser.action` URL
+- Uses `/ema/ajax/getDashboardApiAjax/getDashboardUserDailyEnergyInLastWeekAjax` endpoint
+- Simplified configuration - only requires `demoUserId` or `demoLoginUrl`
+- Added test script for dashboard API with auto-login
+- Maintained backward compatibility with legacy API
+
+### Version 0.5.0
+- Updated to AP Systems OpenAPI v2 with signature-based authentication
+- Implemented HMAC-SHA256 signature calculation for API authentication
+- Updated API endpoint to `/api/v2/systems/{sid}/ecus/{eid}/energy/period`
+- Changed from POST to GET requests for OpenAPI v2
+- Updated base URL to use port 9282
+- Added support for System ID (sid) in addition to ECU ID (eid)
+- Updated response code handling (0 = success for OpenAPI v2)
+- Maintained backward compatibility with legacy API
 
 ### Version 0.4.0
 - Updated to support newer AP Systems APIs with HTTPS
@@ -104,3 +165,7 @@ If you need to use the old HTTP API endpoint:
 
 ### Version 0.3.0
 - Initial release with HTTP API support
+
+## References
+
+- [AP Systems OpenAPI User Manual](https://file.apsystemsema.com:8083/apsystems/resource/openapi/Apsystems_OpenAPI_User_Manual_End_User_EN.pdf)
