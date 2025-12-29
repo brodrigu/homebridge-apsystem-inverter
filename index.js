@@ -28,6 +28,9 @@ const ACCESSORY_NAME = 'APSystemsInverter';
 module.exports = function(homebridge) {
     Service = homebridge.hap.Service;
     Characteristic = homebridge.hap.Characteristic;
+    
+    // Register accessory - class will be defined by the time this function is called
+    // (since the entire file executes before Homebridge calls this function)
     homebridge.registerAccessory(PLUGIN_NAME, ACCESSORY_NAME, APSystemsInverter);
 }
 
@@ -361,14 +364,31 @@ const getInverterData = async(useLegacyApi, ecuId, demoLoginUrl, demoUserId) => 
 			const url = `${LEGACY_API_BASE_URL}:${LEGACY_API_PORT}${LEGACY_API_PATH}`;
 			const params = `filter=power&ecuId=${ecuId}&date=${formatted_date_legacy}`;
 			
-			return await apiInstance.post(url, params, {
-				headers: {
-					'Content-Type': 'application/x-www-form-urlencoded'
-				},
-				validateStatus: function (status) {
-					return status >= 200 && status < 500;
+			try {
+				const response = await apiInstance.post(url, params, {
+					headers: {
+						'Content-Type': 'application/x-www-form-urlencoded'
+					},
+					validateStatus: function (status) {
+						return status >= 200 && status < 500;
+					}
+				});
+				
+				// Check for 404 - legacy API might be deprecated
+				if (response.status === 404) {
+					console.error('Legacy API endpoint returned 404 - the endpoint may be deprecated.');
+					console.error('Please remove "useLegacyApi: true" from your config and use "demoUserId" instead.');
+					return null;
 				}
-			});
+				
+				return response;
+			} catch (error) {
+				if (error.response && error.response.status === 404) {
+					console.error('Legacy API endpoint returned 404 - the endpoint may be deprecated.');
+					console.error('Please remove "useLegacyApi: true" from your config and use "demoUserId" instead.');
+				}
+				throw error;
+			}
 		}
 		
 		// Web Dashboard API - auto-login to demo user to get fresh cookies
@@ -562,8 +582,14 @@ class APSystemsInverter {
 	    // ECU ID for legacy API
 	    this.ecuId = config["ecuId"];
 	    
-	    // For backward compatibility
+	    // For backward compatibility - explicitly check for true
+	    // If not explicitly set to true, default to false (use web dashboard API)
 	    this.useLegacyApi = config["useLegacyApi"] === true;
+	    
+	    // Warn if ecuId is provided but useLegacyApi is not true (might be old config)
+	    if (this.ecuId && !this.useLegacyApi) {
+	    	this.log.warn('ecuId is provided but useLegacyApi is not set to true. Ignoring ecuId and using web dashboard API.');
+	    }
 	    
 	    this.inverter_data = config["inverter_data"];
 	    this.minLux = config["min_lux"] || DEF_MIN_LUX;
@@ -625,8 +651,15 @@ class APSystemsInverter {
 
 			callback(null, getValue);
 		} catch (error) {
-			this.log.error('Error getting inverter value:', error.message);
-			callback(error);
+			// Provide helpful error message for legacy API 404 errors
+			if (error.response && error.response.status === 404 && this.useLegacyApi) {
+				this.log.error('Legacy API endpoint returned 404 - the endpoint appears to be deprecated.');
+				this.log.error('Please update your config: remove "useLegacyApi: true" and ensure "demoUserId" is set.');
+				callback(new Error('Legacy API endpoint not found. Please use web dashboard API with demoUserId instead.'));
+			} else {
+				this.log.error('Error getting inverter value:', error.message);
+				callback(error);
+			}
 		}
 	}
 }

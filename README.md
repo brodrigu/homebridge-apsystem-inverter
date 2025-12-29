@@ -169,3 +169,4 @@ Update the `DEMO_USER_ID` in the script with your demo user ID first.
 ## References
 
 - [AP Systems OpenAPI User Manual](https://file.apsystemsema.com:8083/apsystems/resource/openapi/Apsystems_OpenAPI_User_Manual_End_User_EN.pdf)
+- Plugin Based on https://github.com/tejonrojo/homebridge-apsystem-inverter
